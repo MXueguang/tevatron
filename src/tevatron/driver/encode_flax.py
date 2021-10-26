@@ -81,7 +81,7 @@ def main():
         padding_batch["text_id"].append(f"00000000000000{i}")
         padding_batch["text"].append([0])
     padding_batch = datasets.Dataset.from_dict(padding_batch)
-    encode_dataset = datasets.concatenate_datasets([encode_dataset, padding_batch])
+    encode_dataset.encode_data = datasets.concatenate_datasets([encode_dataset.encode_data, padding_batch])
 
     encode_loader = DataLoader(
         encode_dataset,

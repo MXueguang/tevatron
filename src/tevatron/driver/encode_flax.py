@@ -73,9 +73,15 @@ def main():
             remove_columns=encode_dataset.column_names,
             desc="Running tokenization",
         )
-        for i in range(len(encode_dataset) % len(jax.devices())):
-            encode_dataset.add_item({"text_id": "00000000000000{i}", "text": []})
         encode_dataset = EncodeDataset(encode_dataset, tokenizer, max_len=text_max_length)
+
+    total_batch_size = len(jax.devices()) * training_args.per_device_eval_batch_size
+    padding_batch = {"text_id": [], "text": []}
+    for i in range(total_batch_size - (len(encode_dataset) % total_batch_size)):
+        padding_batch["text_id"].append(f"00000000000000{i}")
+        padding_batch["text"].append([0])
+    padding_batch = datasets.Dataset.from_dict(padding_batch)
+    encode_dataset = datasets.concatenate_datasets([encode_dataset, padding_batch])
 
     encode_loader = DataLoader(
         encode_dataset,
@@ -104,10 +110,9 @@ def main():
     for (batch_ids, batch) in tqdm(encode_loader):
         lookup_indices.extend(batch_ids)
         batch_embeddings = p_encode_step(shard(batch.data))
-        encoded.extend(batch_embeddings)
-    encoded = jnp.concatenate(encoded, axis=0)
-    torch.save((encoded, lookup_indices), data_args.encoded_save_path)
-
+        encoded.extend(np.concatenate(batch_embeddings, axis=0))
+    with open(data_args.encoded_save_path, 'wb') as f:
+        pickle.dump((encoded, lookup_indices), f)
 
 if __name__ == "__main__":
     main()
